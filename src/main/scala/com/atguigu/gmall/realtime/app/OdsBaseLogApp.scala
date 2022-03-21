@@ -3,14 +3,13 @@ package com.atguigu.gmall.realtime.app
 import com.alibaba.fastjson.serializer.SerializeConfig
 import com.alibaba.fastjson.{JSON, JSONArray, JSONObject}
 import com.atguigu.gmall.realtime.bean.{PageActionsLog, PageDisplayLog, PageLog, PageStartLog}
-import com.atguigu.gmall.realtime.util
-import com.atguigu.gmall.realtime.util.{MyJedisUtils, MyKafkaUtils, MyOffsetUtils}
+import com.atguigu.gmall.realtime.util.{MyKafkaUtils, MyOffsetUtils}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
+import org.apache.spark.SparkConf
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.kafka010.{HasOffsetRanges, OffsetRange}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
-import org.apache.spark.{SparkConf, SparkContext}
 
 import java.lang
 

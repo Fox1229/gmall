@@ -13,11 +13,15 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 import java.lang
 
+/**
+ * 日志数据分流
+ */
 object OdsBaseLogApp {
 
     def main(args: Array[String]): Unit = {
 
-        // 准备环境
+        // TODO 准备环境
+        // 并行度与Kafka中topic的分区个数的对应
         val conf: SparkConf = new SparkConf().setMaster("local[3]").setAppName("ods_base_log_app")
         val ssc: StreamingContext = new StreamingContext(conf, Seconds(5))
 

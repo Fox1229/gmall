@@ -3,9 +3,11 @@ package com.atguigu.gmall.realtime.util
 import java.util
 import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
+import org.apache.kafka.common.TopicPartition
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.kafka010.{ConsumerStrategies, KafkaUtils, LocationStrategies}
+
 import scala.collection.mutable
 
 /**
@@ -21,7 +23,7 @@ object MyKafkaUtils {
         ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG -> MyPropUtils(MyConfigUtils.VALUE_DESERIALIZER_CLASS),
         // group id
         // offset提交
-        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "true",
+        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "false",
         // 自动提交时间间隔：5s
         // ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG -> ""
         // offset重置
@@ -36,6 +38,18 @@ object MyKafkaUtils {
 
         val kafkaDStream: InputDStream[ConsumerRecord[String, String]]
             = KafkaUtils.createDirectStream(ssc, LocationStrategies.PreferConsistent, ConsumerStrategies.Subscribe[String, String](Array(topic), consumerConfig))
+        kafkaDStream
+    }
+
+
+    /**
+     * 指定offset消费
+     */
+    def getKafkaDStream(ssc: StreamingContext, topic: String, groupId: String, offsets: Map[TopicPartition, Long]) = {
+        consumerConfig.put(ConsumerConfig.GROUP_ID_CONFIG, groupId)
+
+        val kafkaDStream: InputDStream[ConsumerRecord[String, String]]
+        = KafkaUtils.createDirectStream(ssc, LocationStrategies.PreferConsistent, ConsumerStrategies.Subscribe[String, String](Array(topic), consumerConfig, offsets))
         kafkaDStream
     }
 

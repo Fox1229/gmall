@@ -23,7 +23,7 @@ object MyKafkaUtils {
         ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG -> MyPropUtils(MyConfigUtils.VALUE_DESERIALIZER_CLASS),
         // group id
         // offset提交
-        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "false",
+        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "true",
         // 自动提交时间间隔：5s
         // ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG -> ""
         // offset重置
@@ -101,6 +101,15 @@ object MyKafkaUtils {
     def closeProducer: Unit = {
         if(producer != null) {
             producer.close()
+        }
+    }
+
+    /**
+     * 将缓冲区数据刷写到磁盘
+     */
+    def flush(): Unit = {
+        if(producer != null) {
+            producer.flush()
         }
     }
 }

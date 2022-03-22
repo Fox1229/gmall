@@ -66,7 +66,7 @@ object MyOffsetUtils {
      *      1. 如何让SparkStreaming通过指定的offset消费
      *      2. SparkStreaming要求offset的格式：Map(TopicPartition, Long)
      */
-    def getOffset(topic: String, groupId: String): Map[TopicPartition, Long] = {
+    def readOffset(topic: String, groupId: String): Map[TopicPartition, Long] = {
 
         // 获取连接
         val jedis: Jedis = MyJedisUtils.getJedisFromPoll()

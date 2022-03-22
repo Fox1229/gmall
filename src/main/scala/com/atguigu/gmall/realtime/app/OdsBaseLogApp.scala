@@ -29,7 +29,7 @@ object OdsBaseLogApp {
         val groupId: String = "ODS_BASE_LOG_GROUP_id"
 
         // TODO 从Redis读取offset，指定offset进行消费
-        val offsets: Map[TopicPartition, Long] = MyOffsetUtils.getOffset(topic, groupId)
+        val offsets: Map[TopicPartition, Long] = MyOffsetUtils.readOffset(topic, groupId)
         var kafkaStream: InputDStream[ConsumerRecord[String, String]] = null
         if (offsets != null && offsets.nonEmpty) {
             // 读取到指定的offset，从指定的offset消费

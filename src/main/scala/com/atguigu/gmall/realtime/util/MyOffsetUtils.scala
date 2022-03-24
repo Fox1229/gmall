@@ -44,7 +44,7 @@ object MyOffsetUtils {
         if(offsetRanges != null && offsetRanges.length > 0) {
 
             // 连接Redis
-            val jedis: Jedis = MyJedisUtils.getJedisFromPoll()
+            val jedis: Jedis = MyRedisUtils.getJedisFromPoll()
             val offsetMap: util.HashMap[String, String] = new util.HashMap[String, String]()
             val key: String = s"offset:$topic:$groupId"
             for (elem <- offsetRanges) {
@@ -69,7 +69,7 @@ object MyOffsetUtils {
     def readOffset(topic: String, groupId: String): Map[TopicPartition, Long] = {
 
         // 获取连接
-        val jedis: Jedis = MyJedisUtils.getJedisFromPoll()
+        val jedis: Jedis = MyRedisUtils.getJedisFromPoll()
 
         // 获取某个主题各个分区的消费偏移量
         val redisKey: String = s"offset:$topic:$groupId"

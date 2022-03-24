@@ -5,7 +5,7 @@ import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
 /**
  * Redis工具类，获取Redis连接
  */
-object MyJedisUtils {
+object MyRedisUtils {
 
     var jedisPool: JedisPool = null
 

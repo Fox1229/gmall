@@ -1,8 +1,8 @@
 package com.atguigu.gmall.realtime.app
 
-import com.alibaba.fastjson.JSON
-import com.atguigu.gmall.realtime.bean.PageLog
-import com.atguigu.gmall.realtime.util.{MyJedisUtils, MyKafkaUtils, MyOffsetUtils}
+import com.alibaba.fastjson.{JSON, JSONObject}
+import com.atguigu.gmall.realtime.bean.{DauInfo, PageLog}
+import com.atguigu.gmall.realtime.util.{MyBeanUtils, MyKafkaUtils, MyOffsetUtils, MyRedisUtils}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.spark.SparkConf
@@ -13,6 +13,7 @@ import redis.clients.jedis.Jedis
 
 import java.text.SimpleDateFormat
 import java.lang
+import java.time.{LocalDate, Period}
 import java.util.Date
 import scala.collection.mutable.ListBuffer
 
@@ -66,30 +67,114 @@ object DwdDauApp {
         )
 
         // 第三方审查 所有会话的第一个页面，去redis中检查是否是今天的第一次
-        val pageLogFilterDStream: DStream[PageLog] = filterDStream.mapPartitions(
+        val filterRedisDStream: DStream[PageLog] = filterDStream.mapPartitions(
             pageLogIter => {
-                //获取redis连接
-                val jedis: Jedis = MyJedisUtils.getJedisFromPoll()
-                val filterList: ListBuffer[PageLog] = ListBuffer[PageLog]()
+                val pageLogList: List[PageLog] = pageLogIter.toList
+                // println("第三方审查前: " + pageLogList.size)
+
+                //存储要的数据
+                val pageLogs: ListBuffer[PageLog] = ListBuffer[PageLog]()
                 val sdf: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd")
-                println("过滤前 : " + pageLogIter.size)
-                for (pageLog <- pageLogIter) {
-                    val dateStr: String = sdf.format(new Date(pageLog.ts))
-                    val dauKey: String = s"DAU:$dateStr"
-                    val ifNew: lang.Long = jedis.sadd(dauKey, pageLog.mid)
-                    //设置过期时间
-                    jedis.expire(dauKey,3600 * 24)
-                    if (ifNew == 1L) {
-                        filterList.append(pageLog)
+                val jedis: Jedis = MyRedisUtils.getJedisFromPoll()
+                for (pageLog <- pageLogList) {
+                    // 提取每条数据中的mid (我们日活的统计基于mid， 也可以基于uid)
+                    val mid: String = pageLog.mid
+
+                    // 获取日期, 因为我们要测试不同天的数据，所以不能直接获取系统时间
+                    val ts: Long = pageLog.ts
+                    val date: Date = new Date(ts)
+                    val dateStr: String = sdf.format(date)
+                    val redisDauKey: String = s"DAU:$dateStr"
+
+                    // redis的判断是否包含操作
+                    /*
+                        下面代码在分布式环境中，存在并发问题， 可能多个并行度同时进入到if中,导致最终保留多条同一个mid的数据.
+                        // list
+                        val mids: util.List[String] = jedis.lrange(redisDauKey, 0 ,-1)
+                        if(!mids.contains(mid)){
+                          jedis.lpush(redisDauKey , mid )
+                          pageLogs.append(pageLog)
+                        }
+                        // set
+                        val setMids: util.Set[String] = jedis.smembers(redisDauKey)
+                        if(!setMids.contains(mid)){
+                          jedis.sadd(redisDauKey,mid)
+                          pageLogs.append(pageLog)
+                        }
+                     */
+                    val isNew: lang.Long = jedis.sadd(redisDauKey, mid) // 判断包含和写入实现了原子操作
+                    jedis.expire(redisDauKey, 3600 * 24)
+                    if (isNew == 1L) {
+                        pageLogs.append(pageLog)
                     }
                 }
                 jedis.close()
-                println("过滤后: " + filterList.size)
-                filterList.toIterator
+                // println("第三方审查后: " + pageLogs.size)
+                pageLogs.iterator
             }
         )
 
-//        pageLogFilterDStream.print(10)
+        // 纬度关联
+        val dauInfoDStream: DStream[DauInfo] = filterRedisDStream.mapPartitions(
+            pageLogIter => {
+
+                val jedis: Jedis = MyRedisUtils.getJedisFromPoll()
+                val dauList: ListBuffer[DauInfo] = new ListBuffer[DauInfo]()
+                val sdf: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                for (pageLog <- pageLogIter) {
+
+                    val dauInfo: DauInfo = new DauInfo()
+                    // 将pageLog中的字段赋值到DauInfo中
+                    MyBeanUtils.copyProperties(pageLog, dauInfo)
+
+                    // 补充纬度
+                    // 用户性别 年龄
+                    val userId: String = pageLog.user_id
+                    val userInfo: String = jedis.get(s"DIM:USER_INFO:$userId")
+                    val userInfoJsonObj: JSONObject = JSON.parseObject(userInfo)
+                    // 获取性别
+                    val gender: String = userInfoJsonObj.getString("gender")
+                    // 获取生日，计算年龄
+                    val birthday: String = userInfoJsonObj.getString("birthday") // 1985-08-16
+                    val birthdayLd: LocalDate = LocalDate.parse(birthday)
+                    val nowLd: LocalDate = LocalDate.now()
+                    val age: Int = Period.between(birthdayLd, nowLd).getYears
+                    // 赋值
+                    dauInfo.user_gender = gender
+                    dauInfo.user_age = age.toString
+
+                    // 地区信息
+                    val provinceId: String = dauInfo.province_id
+                    val provinceInfo: String = jedis.get(s"DIM:BASE_PROVINCE:$provinceId")
+                    val provinceJsonObj: JSONObject = JSON.parseObject(provinceInfo)
+                    val provinceName: String = provinceJsonObj.getString("name")
+                    val isoCode: String = provinceJsonObj.getString("iso_code")
+                    val iso3166: String = provinceJsonObj.getString("iso_3166_2")
+                    val areaCode: String = provinceJsonObj.getString("area_code")
+                    // 赋值
+                    dauInfo.province_name = provinceName
+                    dauInfo.province_iso_code = isoCode
+                    dauInfo.province_3166_2 = iso3166
+                    dauInfo.province_area_code = areaCode
+
+                    // 日期
+                    val dateTime: String = sdf.format(new Date(pageLog.ts))
+                    val dtAndHr: Array[String] = dateTime.split(" ")
+                    val dt: String = dtAndHr(0)
+                    val hr: String = dtAndHr(1).split(":")(1)
+                    // 赋值
+                    dauInfo.dt = dt
+                    dauInfo.hr = hr
+
+                    dauList.append(dauInfo)
+                }
+
+                jedis.close()
+                dauList.iterator
+            }
+        )
+
+        dauInfoDStream.print()
 
         // TODO 写入ES
         // TODO 提交offsets

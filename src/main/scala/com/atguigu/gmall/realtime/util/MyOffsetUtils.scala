@@ -74,6 +74,7 @@ object MyOffsetUtils {
         // 获取某个主题各个分区的消费偏移量
         val redisKey: String = s"offset:$topic:$groupId"
         val offsets: util.Map[String, String] = jedis.hgetAll(redisKey)
+        println("读取到offset: " + offsets)
         val partitionToLong: mutable.Map[TopicPartition, Long] = mutable.Map[TopicPartition, Long]()
         import scala.collection.JavaConverters._
         for ((partition, offset) <- offsets.asScala) {

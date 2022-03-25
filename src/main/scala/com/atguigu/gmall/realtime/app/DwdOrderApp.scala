@@ -1,8 +1,9 @@
 package com.atguigu.gmall.realtime.app
 
+import com.alibaba.fastjson.serializer.SerializeConfig
 import com.alibaba.fastjson.{JSON, JSONObject}
-import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo}
-import com.atguigu.gmall.realtime.util.{MyKafkaUtils, MyOffsetUtils, MyRedisUtils}
+import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo, OrderWide}
+import com.atguigu.gmall.realtime.util.{MyBeanUtils, MyKafkaUtils, MyOffsetUtils, MyRedisUtils}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.spark.SparkConf
@@ -12,6 +13,8 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 import redis.clients.jedis.Jedis
 
 import java.time.{LocalDate, Period}
+import java.util
+import scala.collection.mutable.ListBuffer
 
 object DwdOrderApp {
 
@@ -165,7 +168,78 @@ object DwdOrderApp {
         val orderJoinDStream: DStream[(Long, (Option[OrderInfo], Option[OrderDetail]))]
             = orderInfoKVDStream.fullOuterJoin(orderDetailKVDStream)
 
+        val orderWideDSteam: DStream[OrderWide] = orderJoinDStream.mapPartitions(
+            iter => {
 
+                val listBuffer: ListBuffer[OrderWide] = ListBuffer[OrderWide]()
+                val jedis: Jedis = MyRedisUtils.getJedisFromPoll()
+                for ((key, (orderInfoOp, orderDetailOp)) <- iter) {
+
+                    // orderInfo 有， orderDetail 有
+                    // 添加到集合写出
+                    if (orderInfoOp.isDefined) {
+
+                        val orderInfoJson: OrderInfo = orderInfoOp.get
+                        if (orderDetailOp.isDefined) {
+                            val orderDetailJson: OrderDetail = orderDetailOp.get
+                            val orderWide: OrderWide = new OrderWide(orderInfoJson, orderDetailJson)
+                            listBuffer.append(orderWide)
+                        }
+
+                        // orderInfo 有， orderDetail 没有
+
+                        // orderInfo写缓存
+                        // orderInfo 在本次不论是否关联上，都需要写入缓存
+                        // 类型: string
+                        // key: ORDERJOIN:ORDER_INFO:ORDER_ID
+                        // value: json
+                        // 写入: set
+                        // 读取: get
+                        // 过期: 24h
+                        val redisKey: String = s"ORDERJOIN:ORDER_INFO:${orderInfoJson.id}"
+                        jedis.set(redisKey, JSON.toJSONString(orderInfoJson, new SerializeConfig(true)))
+                        jedis.expire(redisKey, 24 * 3600)
+
+                        // 读取redis缓存，是否有需要join的orderDetail
+                        val redisOdKey: String = s"ORDERJOIN:ORDER_DETAIL:${orderInfoJson.id}"
+                        val orderDetails: util.Set[String] = jedis.smembers(redisOdKey)
+                        if (orderDetails != null && orderDetails.size() > 0) {
+                            import scala.collection.JavaConverters._
+                            for (orderDetail <- orderDetails.asScala) {
+                                val od: OrderDetail = JSON.parseObject(orderDetail, classOf[OrderDetail])
+                                val orderWide: OrderWide = new OrderWide(orderInfoJson, od)
+                                listBuffer.append(orderWide)
+                            }
+                        }
+                    } else {
+                        // orderInfo 没有， orderDetail 有
+                        // 读缓存，判断是否有需要join的orderInfo， 若存在，join
+                        val orderDetail: OrderDetail = orderDetailOp.get
+                        val orderInfo: String = jedis.get(s"ORDERJOIN:ORDER_INFO:${orderDetail.order_id}")
+                        if (orderInfo != null && orderInfo.nonEmpty) {
+                            val orderInfoObj: OrderInfo = JSON.parseObject(orderInfo, classOf[OrderInfo])
+                            val orderWide: OrderWide = new OrderWide(orderInfoObj, orderDetail)
+                            listBuffer.append(orderWide)
+                        } else {
+                            // orderDetail写缓存
+                            // 类型: set
+                            // key: ORDERJOIN:ORDER_DETAIL:ORDER_ID
+                            // value: json, json...
+                            // 写入: sadd
+                            // 读取: smembers
+                            // 过期: 24h
+                            val redisKey: String = s"ORDERJOIN:ORDER_DETAIL:${orderDetail.order_id}"
+                            jedis.sadd(redisKey, JSON.toJSONString(orderDetail, new SerializeConfig(true)))
+                            jedis.expire(redisKey, 24 * 3600)
+                        }
+                    }
+                }
+                jedis.close()
+                listBuffer.iterator
+            }
+        )
+
+        orderWideDSteam.print(300)
 
         ssc.start()
         ssc.awaitTermination()

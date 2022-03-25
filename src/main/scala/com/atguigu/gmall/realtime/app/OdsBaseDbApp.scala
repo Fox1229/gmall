@@ -21,8 +21,8 @@ object OdsBaseDbApp {
     def main(args: Array[String]): Unit = {
 
         // TODO 准备实时环境
-        val sparkConf: SparkConf = new SparkConf().setAppName("ods_base_db_app").setMaster("local[3]")
-        val ssc: StreamingContext = new StreamingContext(sparkConf, Seconds(5))
+        val conf: SparkConf = new SparkConf().setAppName("ods_base_db_app").setMaster("local[3]")
+        val ssc: StreamingContext = new StreamingContext(conf , Seconds(5))
 
         val topicName: String = "ODS_BASE_DB_M"
         val groupId: String = "ODS_BASE_DB_M_ID"
@@ -69,7 +69,7 @@ object OdsBaseDbApp {
         // foreachPartition里面,循环里面:  executor ， 每条数据开启一个连接，用完关闭， 太频繁。
         jsonObjDStream.foreachRDD(
             rdd => {
-                //如何动态配置表清单???
+                // 如何动态配置表清单???
                 // 将表清单维护到redis中，实时任务中动态的到redis中获取表清单.
                 // 类型: set
                 // key:  FACT:TABLES   DIM:TABLES
@@ -77,7 +77,6 @@ object OdsBaseDbApp {
                 // 写入API: sadd
                 // 读取API: smembers
                 // 过期: 不过期
-
                 val redisFactKeys: String = "FACT:TABLES"
                 val redisDimKeys: String = "DIM:TABLES"
                 val jedis: Jedis = MyRedisUtils.getJedisFromPoll()
@@ -117,12 +116,12 @@ object OdsBaseDbApp {
                                     // 事实数据
                                     // 提取数据
                                     val dwdTopicName: String = s"DWD_${tableName.toUpperCase}_$opValue"
-                                    MyKafkaUtils.send( dwdTopicName, dataObj.toJSONString)
+                                    MyKafkaUtils.send(dwdTopicName, dataObj.toJSONString)
 
-                                    //                                    //模拟数据延迟
-                                    //                                    if(tableName.equals("order_detail")){
-                                    //                                        Thread.sleep(200)
-                                    //                                    }
+                                    //模拟数据延迟
+                                    /*if (tableName.equals("order_detail")) {
+                                        Thread.sleep(400)
+                                    }*/
                                 }
 
                                 if (dimTablesBC.value.contains(tableName)) {
@@ -159,6 +158,7 @@ object OdsBaseDbApp {
                 MyOffsetUtils.saveOffset(topicName, groupId, offsetRanges)
             }
         )
+
         ssc.start()
         ssc.awaitTermination()
     }

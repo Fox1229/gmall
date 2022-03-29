@@ -21,8 +21,8 @@ object MyRedisUtils {
             jedisPoolConfig.setTestOnBorrow(true) //每次获得连接的进行测试
 
             // 获取host和port
-            val host: String = MyPropUtils(MyConfigUtils.redis_host)
-            val port: String = MyPropUtils(MyConfigUtils.redis_port)
+            val host: String = MyPropUtils(MyConfigUtils.REDIS_HOST)
+            val port: String = MyPropUtils(MyConfigUtils.REDIS_PORT)
 
             jedisPool = new JedisPool(jedisPoolConfig, host, port.toInt)
         }

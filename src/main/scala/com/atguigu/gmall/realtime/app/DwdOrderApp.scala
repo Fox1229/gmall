@@ -3,7 +3,7 @@ package com.atguigu.gmall.realtime.app
 import com.alibaba.fastjson.serializer.SerializeConfig
 import com.alibaba.fastjson.{JSON, JSONObject}
 import com.atguigu.gmall.realtime.bean.{OrderDetail, OrderInfo, OrderWide}
-import com.atguigu.gmall.realtime.util.{MyBeanUtils, MyKafkaUtils, MyOffsetUtils, MyRedisUtils}
+import com.atguigu.gmall.realtime.util.{MyBeanUtils, MyEsUtils, MyKafkaUtils, MyOffsetUtils, MyRedisUtils}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.spark.SparkConf
@@ -140,7 +140,7 @@ object DwdOrderApp {
         )
 
         // orderInfoDimDStream.print()
-        // 5.3 双流Join
+        // TODO 双流Join
         // 内连接 join  结果集取交集
         // 外连接
         //   左外连  leftOuterJoin   左表所有+右表的匹配  , 分析清楚主(驱动)表 从(匹配表) 表
@@ -239,7 +239,26 @@ object DwdOrderApp {
             }
         )
 
-        orderWideDSteam.print(300)
+        // TODO 写入ES
+        orderWideDSteam.foreachRDD(
+            rdd => {
+                rdd.foreachPartition(
+                    iter => {
+                        val orderWideList: List[(String, OrderWide)]
+                            = iter.map(orderWide => (orderWide.detail_id.toString, orderWide)).toList
+                        if(orderWideList.nonEmpty) {
+                            val dt: String = orderWideList.head._2.create_date
+                            val indexName: String = s"gmall_order_wide_$dt"
+                            MyEsUtils.saveToEs(indexName, orderWideList)
+                        }
+                    }
+                )
+
+                // 提交offset
+                MyOffsetUtils.saveOffset(orderInfoTopic, orderInfoGroupId, orderInfoOffsetRanges)
+                MyOffsetUtils.saveOffset(orderDetailTopic, orderDetailGroupId, orderDetailOffsetRanges)
+            }
+        )
 
         ssc.start()
         ssc.awaitTermination()

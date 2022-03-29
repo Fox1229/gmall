@@ -13,6 +13,10 @@ object MyConfigUtils {
     val VALUE_DESERIALIZER_CLASS: String = "kafka.deserializer.value"
 
     // redis
-    val redis_host: String = "redis_host"
-    val redis_port: String = "redis_port"
+    val REDIS_HOST: String = "redis_host"
+    val REDIS_PORT: String = "redis_port"
+
+    // es
+    val ES_HOST: String = "es_host"
+    val ES_PORT: String = "es_port"
 }

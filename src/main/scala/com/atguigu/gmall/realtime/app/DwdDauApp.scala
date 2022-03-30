@@ -10,7 +10,6 @@ import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.kafka010.{HasOffsetRanges, OffsetRange}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import redis.clients.jedis.{Jedis, Pipeline}
-
 import java.text.SimpleDateFormat
 import java.lang
 import java.time.{LocalDate, Period}
@@ -164,7 +163,7 @@ object DwdDauApp {
                     val dateTime: String = sdf.format(new Date(pageLog.ts))
                     val dtAndHr: Array[String] = dateTime.split(" ")
                     val dt: String = dtAndHr(0)
-                    val hr: String = dtAndHr(1).split(":")(1)
+                    val hr: String = dtAndHr(1).split(":")(0)
                     // 赋值
                     dauInfo.dt = dt
                     dauInfo.hr = hr

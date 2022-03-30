@@ -44,6 +44,7 @@ object OdsBaseLogApp {
         val offsetRangeDStream: DStream[ConsumerRecord[String, String]] = kafkaStream.transform(
             rdd => {
                 offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges // driver端执行
+                println(offsetRanges.mkString("Array(", ", ", ")"))
                 rdd
             }
         )

@@ -41,7 +41,6 @@ object MyKafkaUtils {
         kafkaDStream
     }
 
-
     /**
      * 指定offset消费
      */

@@ -55,6 +55,7 @@ object MyOffsetUtils {
             // 保存offset到Redis
             jedis.hset(key, offsetMap)
 
+            println(offsetMap)
             // 释放连接
             jedis.close()
         }

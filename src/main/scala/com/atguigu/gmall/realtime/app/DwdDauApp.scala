@@ -177,7 +177,7 @@ object DwdDauApp {
         )
 
         // TODO 写入ES
-        //按照天分割索引，通过索引模板控制mapping、settings、aliases等
+        //按照天分割索引，通过索引模t板控制mapping、settings、aliases等
         dauInfoDStream.foreachRDD(
             rdd => {
                 rdd.foreachPartition(

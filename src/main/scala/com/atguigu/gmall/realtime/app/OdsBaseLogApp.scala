@@ -67,7 +67,7 @@ object OdsBaseLogApp {
 
         // 分流规则:
         // 错误数据: 不做任何的拆分， 只要包含错误字段，直接整条数据发送到对应的topic
-        // 页面数据: 拆分成页面访问， 曝光， 事件 分别发送到对应的topic
+        // 页面数据: 拆分成页面访问， 曝光，事件 分别发送到对应的topic
         // 启动数据: 发动到对应的topic
         jsonObj.foreachRDD(
             rdd => {

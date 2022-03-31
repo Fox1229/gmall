@@ -23,7 +23,7 @@ object MyKafkaUtils {
         ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG -> MyPropUtils(MyConfigUtils.VALUE_DESERIALIZER_CLASS),
         // group id
         // offset提交
-        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "true",
+        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "false",
         // 自动提交时间间隔：5s
         // ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG -> ""
         // offset重置
